@@ -34,11 +34,11 @@ def connect_to_mongodb(uri="mongodb://localhost:27017/"):
     try:
         client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         client.admin.command('ping')
-        print("[OK] Conexion exitosa a MongoDB")
+        print("[OK] Conexión exitosa a MongoDB")
         return client
     except ConnectionFailure as e:
-        print(f"[ERROR] Error de conexion a MongoDB: {e}")
-        print("   Asegurate de que MongoDB este ejecutandose en localhost:27017")
+        print(f"[ERROR] Error de conexión a MongoDB: {e}")
+        print("   Asegúrate de que MongoDB esté ejecutándose en localhost:27017")
         return None
     except Exception as e:
         print(f"[ERROR] Error inesperado: {e}")
@@ -69,7 +69,7 @@ def format_document(doc):
     lines.append(f"ID: {doc_copy.get('_id', 'N/A')}")
     lines.append(f"Nombre: {doc_copy.get('nombre', 'N/A')}")
     lines.append(f"Email: {doc_copy.get('email', 'N/A')}")
-    lines.append(f"Telefono: {doc_copy.get('telefono', 'N/A')}")
+    lines.append(f"Teléfono: {doc_copy.get('telefono', 'N/A')}")
     
     # Fecha de registro
     fecha_registro = doc_copy.get('fecha_registro')
@@ -83,9 +83,9 @@ def format_document(doc):
     membresia = doc_copy.get('membresia', {})
     if membresia:
         lines.append("")
-        lines.append("--- Membresia ---")
+        lines.append("--- Membresía ---")
         lines.append(f"  Tipo: {membresia.get('tipo', 'N/A')}")
-        lines.append(f"  Duracion (meses): {membresia.get('duracion_meses', 'N/A')}")
+        lines.append(f"  Duración (meses): {membresia.get('duracion_meses', 'N/A')}")
         lines.append(f"  Precio Mensual: ${membresia.get('precio_mensual', 'N/A')}")
         
         fecha_inicio = membresia.get('fecha_inicio')
@@ -107,8 +107,8 @@ def format_document(doc):
     if entrenamientos:
         for i, entrenamiento in enumerate(entrenamientos[:5], 1):
             lines.append(f"  [{i}] Tipo: {entrenamiento.get('tipo', 'N/A')}")
-            lines.append(f"      Duracion: {entrenamiento.get('duracion_minutos', 'N/A')} min")
-            lines.append(f"      Calorias: {entrenamiento.get('calorias_quemadas', 'N/A')}")
+            lines.append(f"      Duración: {entrenamiento.get('duracion_minutos', 'N/A')} min")
+            lines.append(f"      Calorías: {entrenamiento.get('calorias_quemadas', 'N/A')}")
             lines.append(f"      Instructor: {entrenamiento.get('instructor', 'N/A')}")
             lines.append(f"      Intensidad: {entrenamiento.get('nivel_intensidad', 'N/A')}")
             
@@ -192,6 +192,26 @@ def validar_email(email):
     if not re.match(patron_email, email):
         raise ValueError("El email debe ser un correo Gmail válido, por ejemplo: usuario@gmail.com")
     return email
+
+
+def validar_nombre(nombre):
+    """Valida que el nombre solo contenga letras y espacios, sin números ni caracteres especiales."""
+    nombre = nombre.strip()
+    if not nombre:
+        raise ValueError("El nombre no puede estar vacío")
+    
+    # Verificar que no contenga números
+    if any(char.isdigit() for char in nombre):
+        raise ValueError("El nombre no puede contener números")
+    
+    # Verificar que solo contenga letras y espacios
+    if not all(char.isalpha() or char.isspace() for char in nombre):
+        raise ValueError("El nombre solo puede contener letras y espacios")
+    
+    if len(nombre) > 25:
+        raise ValueError("El nombre no puede exceder 25 caracteres")
+    
+    return nombre
 
 
 def validar_telefono(telefono):
@@ -278,7 +298,7 @@ def opcion_crear_miembro(collection):
         nombre = ""
         while True:
             try:
-                nombre = validar_texto_obligatorio(input("Nombre completo: "), "nombre", 25)
+                nombre = validar_nombre(input("Nombre completo: "))
                 break
             except ValueError as e:
                 print(f"[ERROR] {e}")
@@ -296,65 +316,76 @@ def opcion_crear_miembro(collection):
         telefono = ""
         while True:
             try:
-                telefono = validar_telefono(input("Telefono: "))
+                telefono = validar_telefono(input("Teléfono: "))
                 break
             except ValueError as e:
                 print(f"[ERROR] {e}")
                 print("Inténtalo de nuevo.")
         
         # Fecha de registro (opcional)
-        fecha_registro_str = input("Fecha de registro (YYYY-MM-DD) [dejar vacio para hoy]: ").strip()
-        if fecha_registro_str:
+        fecha_registro = None
+        while fecha_registro is None:
             try:
-                fecha_registro = datetime.strptime(fecha_registro_str, "%Y-%m-%d")
+                fecha_registro_str = input("Fecha de registro (YYYY-MM-DD) [dejar vacío para hoy]: ").strip()
+                if fecha_registro_str:
+                    fecha_registro = datetime.strptime(fecha_registro_str, "%Y-%m-%d")
+                else:
+                    fecha_registro = datetime.now()
             except ValueError:
-                print("[ERROR] Formato de fecha incorrecto. Usa YYYY-MM-DD")
-                return
-        else:
-            fecha_registro = datetime.now()
+                print("[ERROR] Formato de fecha incorrecto. Usa YYYY-MM-DD (ej: 2024-01-15)")
+                print("Inténtalo de nuevo.")
         
         # Datos de membresía
-        print("\n--- Datos de Membresia ---")
-        print("Tipos disponibles: Basica, Premium, VIP")
+        print("\n--- Datos de Membresía ---")
+        print("Tipos disponibles: Básica, Premium, VIP")
+        
         tipo_membresia = ""
         while True:
             try:
-                tipo_membresia = validar_texto_obligatorio(input("Tipo de membresia: "), "tipo de membresia", 20)
+                tipo_membresia = validar_texto_obligatorio(input("Tipo de membresía: "), "tipo de membresía", 20)
+                # Validar que sea uno de los tipos permitidos
+                precio_mensual = get_precio_membresia(tipo_membresia)
+                if precio_mensual is None:
+                    raise ValueError("El tipo de membresía debe ser: Básica, Premium o VIP")
+                print(f"[OK] Se asignó el precio mensual de ${precio_mensual:,.0f} CLP para la membresía {tipo_membresia.title()}.")
                 break
             except ValueError as e:
                 print(f"[ERROR] {e}")
                 print("Inténtalo de nuevo.")
-
-        precio_mensual = get_precio_membresia(tipo_membresia)
-        if precio_mensual is None:
-            print("[ERROR] El tipo de membresia debe ser Basica, Premium o VIP")
-            return
-
-        precio_mensual = get_precio_membresia(tipo_membresia)
-        print(f"[OK] Se asignó el precio mensual de ${precio_mensual:,.0f} CLP para la membresia {tipo_membresia.title()}.")
         
         duracion_meses = None
         while duracion_meses is None:
             try:
                 valor_duracion = input("Duracion en meses: ").strip()
                 if not valor_duracion:
-                    raise ValueError("La duracion en meses no puede estar vacía")
+                    raise ValueError("La duración en meses no puede estar vacía")
+                
                 duracion_meses = int(valor_duracion)
+                
                 if duracion_meses <= 0:
-                    raise ValueError("La duracion debe ser mayor a 0")
+                    raise ValueError("La duración debe ser mayor a 0")
+                if duracion_meses > 36:
+                    raise ValueError("La duración máxima es de 36 meses")
+                if len(valor_duracion) > 2:
+                    raise ValueError("La duración debe tener máximo 2 dígitos")
             except ValueError as e:
                 print(f"[ERROR] {e}")
+                print("[INFO] Solo se aceptan números enteros, máximo 2 dígitos, hasta 36 meses (ejemplos: 01, 06, 12, 36)")
                 print("Inténtalo de nuevo.")
+                duracion_meses = None
         
-        fecha_inicio_str = input("Fecha de inicio (YYYY-MM-DD) [dejar vacio para hoy]: ").strip()
-        if fecha_inicio_str:
+        fecha_inicio = None
+        while fecha_inicio is None:
             try:
-                fecha_inicio = datetime.strptime(fecha_inicio_str, "%Y-%m-%d")
+                fecha_inicio_str = input("Fecha de inicio (YYYY-MM-DD) [dejar vacío para hoy]: ").strip()
+                if fecha_inicio_str:
+                    fecha_inicio = datetime.strptime(fecha_inicio_str, "%Y-%m-%d")
+                else:
+                    fecha_inicio = datetime.now()
             except ValueError:
-                print("[ERROR] Formato de fecha incorrecto. Usa YYYY-MM-DD")
-                return
-        else:
-            fecha_inicio = datetime.now()
+                print("[ERROR] Formato de fecha incorrecto. Usa YYYY-MM-DD (ej: 2024-01-15)")
+                print("Inténtalo de nuevo.")
+                fecha_inicio = None
         
         # Calcular fecha de vencimiento
         from dateutil.relativedelta import relativedelta
@@ -462,7 +493,7 @@ def opcion_listar_miembros(collection):
         
         print(f"\nTotal de miembros: {len(miembros)}")
         print("\n" + "-" * 80)
-        print(f"{'Nombre':20} | {'Email':30} | {'Membresia':12} | {'Activo':6}")
+        print(f"{'Nombre':20} | {'Email':30} | {'Membresía':12} | {'Activo':6}")
         print("-" * 80)
         
         for miembro in miembros:
@@ -492,7 +523,7 @@ def opcion_buscar_por_precio(collection):
         collection: Colección de MongoDB
     """
     print("\n" + "=" * 70)
-    print("BUSCAR POR PRECIO DE MEMBRESIA")
+    print("BUSCAR POR PRECIO DE MEMBRESÍA")
     print("=" * 70)
 
     print("\nPrecios disponibles:")
@@ -501,12 +532,12 @@ def opcion_buscar_por_precio(collection):
     
     try:
         try:
-            monto = float(input("Ingresa el precio exacto de membresia (ej: 30.00): ").strip())
+            monto = float(input("Ingresa el precio exacto de membresía (ej: 30.00): ").strip())
             if monto < 0:
                 print("[ERROR] El monto debe ser mayor o igual a 0")
                 return
         except ValueError:
-            print("[ERROR] Ingresa un numero valido")
+            print("[ERROR] Ingresa un número válido")
             return
         
         query = {
@@ -516,15 +547,15 @@ def opcion_buscar_por_precio(collection):
         resultados = list(collection.find(query))
         
         if not resultados:
-            print(f"\nNo se encontraron miembros con membresia de ${monto:,.0f} CLP.")
+            print(f"\nNo se encontraron miembros con membresía de ${monto:,.0f} CLP.")
             continuar = input("¿Quieres seguir buscando? (s/n): ").strip().lower()
             if continuar == 's':
                 return opcion_buscar_por_precio(collection)
             return
         
-        print(f"\nMiembros con membresia de ${monto:,.0f} CLP: {len(resultados)}")
+        print(f"\nMiembros con membresía de ${monto:,.0f} CLP: {len(resultados)}")
         print("\n" + "-" * 90)
-        print(f"{'Nombre':20} | {'Email':30} | {'Tipo':12} | {'Precio':8} | {'Duracion':8}")
+        print(f"{'Nombre':20} | {'Email':30} | {'Tipo':12} | {'Precio':8} | {'Duración':8}")
         print("-" * 90)
         
         for miembro in resultados:
@@ -564,13 +595,13 @@ def opcion_buscar_por_nombre(collection):
         collection: Colección de MongoDB
     """
     print("\n" + "=" * 70)
-    print("BUSCAR MIEMBROS POR NOMBRE (EXPRESION REGULAR)")
+    print("BUSCAR MIEMBROS POR NOMBRE (EXPRESIÓN REGULAR)")
     print("=" * 70)
     
     try:
-        patron = input("Ingresa el patron de busqueda (ej: 'perez' o 'juan'): ").strip()
+        patron = input("Ingresa el patrón de búsqueda (ej: 'pérez' o 'juan'): ").strip()
         if not patron:
-            print("[ERROR] Debes ingresar un patron de busqueda")
+            print("[ERROR] Debes ingresar un patrón de búsqueda")
             return
         
         query = {
@@ -580,12 +611,12 @@ def opcion_buscar_por_nombre(collection):
         resultados = list(collection.find(query))
         
         if not resultados:
-            print(f"\nNo se encontraron miembros con el patron '{patron}' en el nombre.")
+            print(f"\nNo se encontraron miembros con el patrón '{patron}' en el nombre.")
             return
         
-        print(f"\nMiembros encontrados con el patron '{patron}': {len(resultados)}")
+        print(f"\nMiembros encontrados con el patrón '{patron}': {len(resultados)}")
         print("\n" + "-" * 90)
-        print(f"{'Nombre':20} | {'Email':30} | {'Membresia':12} | {'Precio':8} | {'Activo'}")
+        print(f"{'Nombre':20} | {'Email':30} | {'Membresía':12} | {'Precio':8} | {'Activo'}")
         print("-" * 90)
         
         for miembro in resultados:
@@ -608,7 +639,7 @@ def opcion_buscar_por_nombre(collection):
                 print(f"No se encontró un miembro con el nombre: {ver_detalle}")
         
     except Exception as e:
-        print(f"[ERROR] Error en la busqueda: {e}")
+        print(f"[ERROR] Error en la búsqueda: {e}")
 
 
 def opcion_buscar_por_rango_fechas(collection):
@@ -669,7 +700,7 @@ def opcion_buscar_por_rango_fechas(collection):
         
         print(f"\nMiembros registrados entre {fecha_inicio_str} y {fecha_fin_str}: {len(resultados)}")
         print("\n" + "-" * 80)
-        print(f"{'Nombre':20} | {'Email':30} | {'Fecha Registro':20} | {'Membresia':12}")
+        print(f"{'Nombre':20} | {'Email':30} | {'Fecha Registro':20} | {'Membresía':12}")
         print("-" * 80)
         
         for miembro in resultados:
@@ -753,7 +784,7 @@ def opcion_buscar_por_instructor(collection):
             
             print(f"\nNombre: {nombre}")
             print(f"Email: {email}")
-            print(f"Membresia: {membresia_tipo}")
+            print(f"Membresía: {membresia_tipo}")
             print(f"Activo: {activo}")
             print(f"Entrenamientos con {instructor}: {len(entrenamientos_con_instructor)}")
             
@@ -768,7 +799,7 @@ def opcion_buscar_por_instructor(collection):
                 print(f"  [{i}] {entrenamiento.get('tipo', 'N/A')} - {fecha_str} - {entrenamiento.get('duracion_minutos', 'N/A')} min")
             
             if len(entrenamientos_con_instructor) > 3:
-                print(f"  ... y {len(entrenamientos_con_instructor) - 3} entrenamientos mas")
+                print(f"  ... y {len(entrenamientos_con_instructor) - 3} entrenamientos más")
         
         print("\n" + "-" * 80)
         
@@ -784,7 +815,7 @@ def opcion_buscar_por_instructor(collection):
         print(f"[ERROR] Error en la busqueda: {e}")
 
 
-def opcion_actualizar_campo_raiz(collection):
+def opcion_actualizar_campo_raíz(collection):
     """
     Opción 7: Actualizar un campo raíz del documento.
     
@@ -792,7 +823,7 @@ def opcion_actualizar_campo_raiz(collection):
         collection: Colección de MongoDB
     """
     print("\n" + "=" * 70)
-    print("ACTUALIZAR CAMPO RAIZ")
+    print("ACTUALIZAR CAMPO RAÍZ")
     print("=" * 70)
     
     try:
@@ -921,22 +952,22 @@ def opcion_actualizar_subdocumento(collection):
         print(format_document(miembro))
         
         print("\nOpciones de actualización:")
-        print("1. Actualizar precio de membresia")
-        print("2. Actualizar duracion de membresia")
+        print("1. Actualizar precio de membresía")
+        print("2. Actualizar duración de membresía")
         print("3. Agregar beneficio a membresia")
         print("4. Agregar nuevo entrenamiento al historial")
         
         opcion = input("\nSelecciona una opcion (1-4): ").strip()
         
         if opcion == "1":
-            # Actualizar precio de membresia
+            # Actualizar precio de membresía
             try:
                 nuevo_precio = float(input("Nuevo precio mensual: ").strip())
                 if nuevo_precio < 0:
                     print("[ERROR] El precio debe ser mayor o igual a 0")
                     return
             except ValueError:
-                print("[ERROR] Ingresa un numero valido")
+                print("[ERROR] Debes ingresar un número válido")
                 return
             
             confirmar = input(f"¿Actualizar precio de ${miembro['membresia']['precio_mensual']} a ${nuevo_precio}? (s/n): ").strip().lower()
@@ -956,17 +987,17 @@ def opcion_actualizar_subdocumento(collection):
                     print("[ADVERTENCIA] No se realizaron cambios")
         
         elif opcion == "2":
-            # Actualizar duracion de membresia
+            # Actualizar duración de membresía
             try:
-                nueva_duracion = int(input("Nueva duracion en meses: ").strip())
+                nueva_duracion = int(input("Nueva duración en meses: ").strip())
                 if nueva_duracion <= 0:
                     print("[ERROR] La duracion debe ser mayor a 0")
                     return
             except ValueError:
-                print("[ERROR] Ingresa un numero entero valido")
+                print("[ERROR] Ingresa un número entero válido")
                 return
             
-            confirmar = input(f"¿Actualizar duracion de {miembro['membresia']['duracion_meses']} a {nueva_duracion} meses? (s/n): ").strip().lower()
+            confirmar = input(f"¿Actualizar duración de {miembro['membresia']['duracion_meses']} a {nueva_duracion} meses? (s/n): ").strip().lower()
             if confirmar == 's':
                 from dateutil.relativedelta import relativedelta
                 fecha_inicio = miembro['membresia']['fecha_inicio']
@@ -1024,21 +1055,21 @@ def opcion_actualizar_subdocumento(collection):
                 return
             
             try:
-                duracion = int(input("Duracion (minutos): ").strip())
+                duracion = int(input("Duración (minutos): ").strip())
                 if duracion <= 0:
-                    print("[ERROR] La duracion debe ser mayor a 0")
+                    print("[ERROR] La duración debe ser mayor a 0")
                     return
             except ValueError:
-                print("[ERROR] Ingresa un numero entero valido")
+                print("[ERROR] Ingresa un número entero válido")
                 return
             
             try:
-                calorias = int(input("Calorias quemadas: ").strip())
+                calorias = int(input("Calorías quemadas: ").strip())
                 if calorias < 0:
-                    print("[ERROR] Las calorias deben ser mayor o igual a 0")
+                    print("[ERROR] Las calorías deben ser mayor o igual a 0")
                     return
             except ValueError:
-                print("[ERROR] Ingresa un numero entero valido")
+                print("[ERROR] Ingresa un número entero válido")
                 return
             
             instructor = input("Nombre del instructor: ").strip()
@@ -1051,7 +1082,7 @@ def opcion_actualizar_subdocumento(collection):
                 print("[ERROR] El nivel de intensidad es obligatorio")
                 return
             
-            fecha_entrenamiento_str = input("Fecha (YYYY-MM-DD) [dejar vacio para hoy]: ").strip()
+            fecha_entrenamiento_str = input("Fecha (YYYY-MM-DD) [dejar vacío para hoy]: ").strip()
             if fecha_entrenamiento_str:
                 try:
                     fecha_entrenamiento = datetime.strptime(fecha_entrenamiento_str, "%Y-%m-%d")
@@ -1138,15 +1169,15 @@ def mostrar_menu():
     print("\n" + "=" * 70)
     print("CRUD GIMNASIO - MENÚ PRINCIPAL")
     print("=" * 70)
-    print("1. Crear miembro")
-    print("2. listar miembros")
-    print("3. Buscar por precio")
-    print("4. Buscar por nombre")
-    print("5. Buscar por rango de fechas")
-    print("6. Buscar por instructor")
-    print("7. actualizar miembro")
-    print("8. actualizar subdocumento/historial")
-    print("9. eliminar miembro")
+    print("1.  Crear miembro")
+    print("2.  Listar miembros")
+    print("3.  Buscar por precio")
+    print("4.  Buscar por nombre")
+    print("5.  Buscar por rango de fechas")
+    print("6.  Buscar por instructor")
+    print("7.  Actualizar miembro")
+    print("8.  Actualizar subdocumento/historial")
+    print("9.  Eliminar miembro")
     print("10. Salir")
 
 
@@ -1169,7 +1200,7 @@ def ejecutar_menu(collection):
         elif opcion == "6":
             opcion_buscar_por_instructor(collection)
         elif opcion == "7":
-            opcion_actualizar_campo_raiz(collection)
+            opcion_actualizar_campo_raíz(collection)
         elif opcion == "8":
             opcion_actualizar_subdocumento(collection)
         elif opcion == "9":
